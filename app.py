@@ -8,6 +8,13 @@ import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from streamlit_drawable_canvas import st_canvas
 
+uploaded = st.file_uploader("石垣画像をアップロード", type=["jpg", "jpeg", "png"])
+if uploaded is not None:
+    st.success("画像がアップロードされました ✅")
+else:
+    st.warning("画像をアップロードしてください。")
+
+
 st.set_page_config(page_title="Ishigaki Bulge Analyzer", layout="wide")
 st.title("🧱 Ishigaki Bulge Analyzer")
 
@@ -183,7 +190,8 @@ bg_pil = Image.fromarray(img_rgb)  # numpy → PIL
 
 # ---------- ROI polygon ----------
 st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
-roi_canvas = st_canvas(
+roi_canvas = st.image(bg_pil_disp, caption="キャンバスに渡す背景画像", use_column_width=True)
+st_canvas(
     fill_color="rgba(255, 165, 0, 0.25)",
     stroke_width=3, stroke_color="#ffa500",
     background_image=bg_pil_disp,     # ← ここを必ず bg_pil_disp
@@ -191,6 +199,7 @@ roi_canvas = st_canvas(
     width=display_w, height=display_h,
     drawing_mode="polygon",
     key="roi_canvas",
+    height=display_h,
 )
 
 roi_mask = None
