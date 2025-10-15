@@ -8,15 +8,17 @@ import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from streamlit_drawable_canvas import st_canvas
 
+
+
+
+st.set_page_config(page_title="Ishigaki Bulge Analyzer", layout="wide")
+st.title("🧱 Ishigaki Bulge Analyzer")
+
 uploaded = st.file_uploader("石垣画像をアップロード", type=["jpg", "jpeg", "png"])
 if uploaded is not None:
     st.success("画像がアップロードされました ✅")
 else:
     st.warning("画像をアップロードしてください。")
-
-
-st.set_page_config(page_title="Ishigaki Bulge Analyzer", layout="wide")
-st.title("🧱 Ishigaki Bulge Analyzer")
 
 # ---------- Utility ----------
 def rotate_about_point(image, angle_deg, center):
