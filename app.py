@@ -199,7 +199,6 @@ st_canvas(
     width=display_w, height=display_h,
     drawing_mode="polygon",
     key="roi_canvas",
-    height=display_h,
 )
 
 roi_mask = None
