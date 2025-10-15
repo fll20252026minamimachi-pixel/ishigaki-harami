@@ -189,28 +189,28 @@ if uploaded is not None:
 
     # ---- ROI キャンバス ----
     st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
-    roi_canvas = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.25)",
-        stroke_width=3, stroke_color="#ffa500",
-        background_image=bg_pil_disp,   # ← ここを NumPy 配列に
-        update_streamlit=True,
-        display_toolbar=True,
-        width=display_w, height=display_h,
-        drawing_mode="polygon",
-        key="roi_canvas",
-    )
-
+     roi_canvas = st_canvas(
+    fill_color="rgba(255, 165, 0, 0.25)",
+    stroke_width=3, stroke_color="#ffa500",
+    background_image=bg_pil_disp.copy(),   # ← PIL(RGB) を copy() して渡す
+    background_color=None,                 # ← 透過（上書きされないよう明示）
+    update_streamlit=True,
+    display_toolbar=True,
+    width=int(display_w), height=int(display_h),
+    drawing_mode="polygon",
+    key="roi_canvas",
+)
     # ---- 基準線 キャンバス ----
     st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
     click_canvas = st_canvas(
-        background_image=bg_pil_disp,   # ← ここを NumPy 配列に
-        update_streamlit=True,
-        display_toolbar=True,
-        width=display_w, height=display_h,
-        drawing_mode="point",
-        key="click_canvas",
-    )
-
+    background_image=bg_pil_disp.copy(),   # ← 同上
+    background_color=None,
+    update_streamlit=True,
+    display_toolbar=True,
+    width=int(display_w), height=int(display_h),
+    drawing_mode="point",
+    key="click_canvas",
+)
 else:
     st.info("上のボタンから石垣の画像（JPG/PNG）をアップロードしてください。")
     st.stop()
