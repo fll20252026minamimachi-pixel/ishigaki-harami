@@ -14,11 +14,7 @@ from streamlit_drawable_canvas import st_canvas
 st.set_page_config(page_title="Ishigaki Bulge Analyzer", layout="wide")
 st.title("🧱 Ishigaki Bulge Analyzer")
 
-uploaded = st.file_uploader("石垣画像をアップロード", type=["jpg", "jpeg", "png"])
-if uploaded is not None:
-    st.success("画像がアップロードされました ✅")
-else:
-    st.warning("画像をアップロードしてください。")
+
 
 # ---------- Utility ----------
 def rotate_about_point(image, angle_deg, center):
@@ -156,84 +152,67 @@ with st.sidebar:
     st.caption("ヒント: うまく拾わない時は ROI を狭める・探索帯を調整")
 
 # ---------- File upload ----------
-#uploaded = st.file_uploader("画像をアップロード（JPG/PNG）", type=["jpg", "jpeg", "png"])
-if not uploaded:
-    st.info("上のボックスから画像を選んでください。")
+uploaded = st.file_uploader("石垣画像をアップロード", type=["jpg", "jpeg", "png"])
+if uploaded is not None:
+    st.success("画像がアップロードされました ✅")
+else:
+    st.warning("画像をアップロードしてください。")
+
+
+if uploaded is not None:
+    import cv2, numpy as np
+    from PIL import Image
+    from streamlit_drawable_canvas import st_canvas
+
+    # ---- 画像読み込み ----
+    file_bytes = np.frombuffer(uploaded.read(), np.uint8)
+    img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    if img_bgr is None:
+        st.error("画像の読み込みに失敗しました。別の画像でお試しください。")
+        st.stop()
+
+    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    H, W = img_rgb.shape[:2]
+
+    # ---- キャンバス表示サイズ ----
+    display_w = min(800, W)                 # 横800px上限
+    display_h = int(H * display_w / W)
+
+    # ---- 背景画像（PIL, RGBA, リサイズ）----
+    bg_pil = Image.fromarray(img_rgb).convert("RGBA")
+    bg_pil_disp = bg_pil.resize((display_w, display_h), Image.BILINEAR)
+
+    # デバッグ用：画像が正しく作れているか確認
+    st.image(bg_pil_disp, caption="キャンバスに渡す背景画像（一時表示）", use_column_width=True)
+
+    # ---- ROI キャンバス ----
+    st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
+    roi_canvas = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.25)",
+        stroke_width=3, stroke_color="#ffa500",
+        background_image=bg_pil_disp,        # ← ここがポイント！
+        update_streamlit=True,
+        display_toolbar=True,
+        width=display_w, height=display_h,
+        drawing_mode="polygon",
+        key="roi_canvas",
+    )
+
+    # ---- 基準線 キャンバス ----
+    st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
+    click_canvas = st_canvas(
+        background_image=bg_pil_disp,
+        update_streamlit=True,
+        display_toolbar=True,
+        width=display_w, height=display_h,
+        drawing_mode="point",
+        key="click_canvas",
+    )
+
+else:
+    st.info("上のボタンから石垣の画像（JPG/PNG）をアップロードしてください。")
     st.stop()
 
-file_bytes = np.frombuffer(uploaded.read(), np.uint8)
-img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
-# （任意）大きすぎる画像は先に縮小して軽量化
-max_w = 1280
-h0, w0 = img_bgr.shape[:2]
-if w0 > max_w:
-    img_bgr = cv2.resize(img_bgr, (max_w, int(h0*max_w/w0)), interpolation=cv2.INTER_AREA)
-
-# RGB化
-img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-H, W = img_rgb.shape[:2]
-
-# キャンバス表示サイズ（横最大800px）
-display_w = min(800, W)
-display_h = int(H * display_w / W)
-
-# 背景に渡す画像は、先にキャンバスサイズへリサイズした PIL 画像にする（重要）
-from PIL import Image  # ← 先頭の import 群にも入れておいてOK
-bg_pil = Image.fromarray(img_rgb).convert("RGB")
-bg_pil_disp = bg_pil.resize((display_w, display_h), Image.BILINEAR)
-# --- ここから追加 ---
-# キャンバス表示サイズ（幅800px以下に）と、PIL画像の用意
-display_w = min(800, W)
-display_h = int(H * display_w / W)
-bg_pil = Image.fromarray(img_rgb)  # numpy → PIL
-# --- ここまで追加 ---
-
-
-# ---------- ROI polygon ----------
-st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
-roi_canvas = st_canvas(
-    fill_color="rgba(255, 165, 0, 0.25)",
-    stroke_width=3, stroke_color="#ffa500",
-    background_color="#00000000",        # 透明にして背景画像を見やすく
-    background_image=bg_pil_disp,        # 事前リサイズ済みの PIL 画像
-    update_streamlit=True,
-    display_toolbar=True,                # ツールバー表示
-    width=display_w, height=display_h,
-    drawing_mode="polygon",
-    key="roi_canvas",
-)
-
-
-roi_mask = None
-if roi_canvas.json_data and len(roi_canvas.json_data["objects"]) > 0:
-    try:
-        obj = roi_canvas.json_data["objects"][-1]
-        if obj.get("path"):
-            pts = []
-            for cmd in obj["path"]:
-                if cmd[0] in ("L", "M"):
-                    pts.append([cmd[1], cmd[2]])
-            if len(pts) >= 3:
-                roi_coords = np.array(roi_coords) * scale
-                scale = W / float(display_w)
-                pts = (np.array(pts) * scale).astype(np.int32)
-                roi_mask = np.zeros((H, W), np.uint8)
-                cv2.fillPoly(roi_mask, [pts.reshape(-1, 1, 2)], 255)
-    except Exception:
-        roi_mask = None
-
-# ---------- TOP/BOTTOM clicks ----------
-st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
-click_canvas = st_canvas(
-    background_color="#00000000",
-    background_image=bg_pil_disp,
-    update_streamlit=True,
-    display_toolbar=True,
-    width=display_w, height=display_h,
-    drawing_mode="point",
-    key="click_canvas",
-)
 
 
 points = []
