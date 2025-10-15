@@ -1,22 +1,29 @@
-# app.py
-# Ishigaki Bulge Analyzer (Streamlit) — self-contained
+# app.py — Ishigaki Bulge Analyzer (Streamlit)
+# 依存関係（requirements.txt 推奨）：
+# streamlit==1.38.0
+# streamlit-drawable-canvas==0.9.3
+# opencv-python-headless
+# numpy
+# Pillow>=9.5
+# matplotlib
+# scipy
+
 import streamlit as st
+st.set_page_config(page_title="Ishigaki Bulge Analyzer", layout="wide")
+
 import numpy as np
-import cv2, io
-from PIL import Image 
+import cv2
+from PIL import Image
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from streamlit_drawable_canvas import st_canvas
 
-
-
-
-st.set_page_config(page_title="Ishigaki Bulge Analyzer", layout="wide")
 st.title("🧱 Ishigaki Bulge Analyzer")
+st.caption("使い方: ①画像アップ ②（任意）ROIで斜面を囲む ③上端→下端をクリック → 解析")
 
-
-
-# ---------- Utility ----------
+# ==========================
+# Utility functions
+# ==========================
 def rotate_about_point(image, angle_deg, center):
     M = cv2.getRotationMatrix2D(tuple(center), angle_deg, 1.0)
     rotated = cv2.warpAffine(
@@ -115,6 +122,8 @@ def analyze(img_bgr, top_xy, bottom_xy, roi_mask=None, band_px=80,
     img_rot, M = rotate_about_point(img_bgr, angle_deg, P_top)
     P_top_rot = apply_transform_points(P_top[None, :], M)[0]
     P_bot_rot = apply_transform_points(P_bot[None, :], M)[0]
+
+    # マスク作成
     if roi_mask is not None:
         roi_mask = cv2.warpAffine(roi_mask, M, (img_bgr.shape[1], img_bgr.shape[0]), flags=cv2.INTER_NEAREST)
     keep_mask = None
@@ -122,16 +131,21 @@ def analyze(img_bgr, top_xy, bottom_xy, roi_mask=None, band_px=80,
         base = roi_mask if roi_mask is not None else np.ones(img_rot.shape[:2], np.uint8) * 255
         keep_mask = hsv_suppressions(img_rot, mask=base, veg_h=veg_h, sky_h=sky_h,
                                      sat_th=40, use_veg=mask_veg, use_sky=mask_sky)
+
+    # Canny & 輪郭
     band_center_x = int(P_top_rot[0])
     edges = canny_edges(img_rot, canny1, canny2, dil, ero, gray_eq, keep_mask)
     contour = choose_contour_in_band(edges, band_center_x, band_px, min_area=min_area)
     centers = None; prof = None
     if contour is not None:
         centers, prof = profile_along_baseline(contour, P_top_rot, P_bot_rot)
+
+    # スケール（mm換算用）
     scale_px_per_mm = None
     if height_mm and height_mm > 0:
         px_len = float(np.linalg.norm(P_bot_rot - P_top_rot))
         scale_px_per_mm = px_len / float(height_mm)
+
     return {
         "img_rot": img_rot, "edges": edges, "contour": contour,
         "P_top_rot": P_top_rot, "P_bot_rot": P_bot_rot,
@@ -139,7 +153,9 @@ def analyze(img_bgr, top_xy, bottom_xy, roi_mask=None, band_px=80,
         "band": (max(0, band_center_x - band_px), min(img_rot.shape[1] - 1, band_center_x + band_px))
     }
 
-# ---------- Sidebar ----------
+# ==========================
+# Sidebar (parameters)
+# ==========================
 with st.sidebar:
     st.header("設定")
     height_mm = st.number_input("石垣の高さ [mm]（任意）", min_value=0, value=0, step=100)
@@ -151,86 +167,121 @@ with st.sidebar:
     mask_sky  = st.checkbox("青（空）を抑制", True)
     st.caption("ヒント: うまく拾わない時は ROI を狭める・探索帯を調整")
 
-# ---------- File upload ----------
+# ==========================
+# Uploader
+# ==========================
 uploaded = st.file_uploader("石垣画像をアップロード", type=["jpg", "jpeg", "png"])
-if uploaded is not None:
-    import cv2, numpy as np
-    from PIL import Image
-    from streamlit_drawable_canvas import st_canvas
 
-    # ---- 画像読み込み ----
-    file_bytes = np.frombuffer(uploaded.read(), np.uint8)
-    img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    if img_bgr is None:
-        st.error("画像の読み込みに失敗しました。別の画像でお試しください。")
-        st.stop()
-
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    H, W = img_rgb.shape[:2]
-
-    # ---- 背景画像 ----
-    display_w = min(800, W)
-    display_h = int(H * display_w / W)
-    bg_pil = Image.fromarray(img_rgb).convert("RGB")
-    bg_pil_disp = bg_pil.resize((display_w, display_h), Image.BILINEAR)
-
-    # ---- ROIキャンバス ----
-    st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
-    roi_canvas = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.25)",
-        stroke_width=3, stroke_color="#ffa500",
-        background_image=bg_pil_disp.copy(),
-        background_color=None,
-        update_streamlit=True,
-        display_toolbar=True,
-        width=int(display_w), height=int(display_h),
-        drawing_mode="polygon",
-        key="roi_canvas",
-    )
-
-    # ---- 基準線キャンバス ----
-    st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
-    click_canvas = st_canvas(
-        background_image=bg_pil_disp.copy(),
-        background_color=None,
-        update_streamlit=True,
-        display_toolbar=True,
-        width=int(display_w), height=int(display_h),
-        drawing_mode="point",
-        key="click_canvas",
-    )
-
-else:
+if uploaded is None:
     st.info("上のボタンから石垣の画像（JPG/PNG）をアップロードしてください。")
     st.stop()
 
+# ==========================
+# Load image & prepare canvas background (PIL RGB, resized)
+# ==========================
+file_bytes = np.frombuffer(uploaded.read(), np.uint8)
+img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+if img_bgr is None:
+    st.error("画像の読み込みに失敗しました。別の画像でお試しください。")
+    st.stop()
 
+img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+H, W = img_rgb.shape[:2]
 
+display_w = int(min(800, W))
+display_h = int(H * display_w / W)
+
+bg_pil = Image.fromarray(img_rgb).convert("RGB")
+bg_pil_disp = bg_pil.resize((display_w, display_h), Image.BILINEAR)
+
+# （確認用プレビュー：出たらOK。落ち着いたら消してもOK）
+st.image(bg_pil_disp, caption="キャンバス背景（確認用）", use_column_width=True)
+
+# ==========================
+# Canvas 1: ROI polygon (optional)
+# ==========================
+st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → ダブルクリックで確定")
+roi_canvas = st_canvas(
+    fill_color="rgba(255, 165, 0, 0.25)",
+    stroke_width=3, stroke_color="#ffa500",
+    background_image=bg_pil_disp.copy(),      # PIL(RGB) を copy() で渡す
+    background_color="rgba(0, 0, 0, 0)",      # 完全透明
+    width=display_w, height=display_h,
+    update_streamlit=True,
+    display_toolbar=True,
+    drawing_mode="polygon",
+    key="roi_canvas",
+)
+
+# ROIマスク（未入力でもOK：今回は解析に必須にしない）
+roi_mask = None
+if roi_canvas.json_data and len(roi_canvas.json_data.get("objects", [])) > 0:
+    # Fabric.jsのpath形式から頂点を抜く（最後のpolygonを採用）
+    obj = roi_canvas.json_data["objects"][-1]
+    pts = []
+    if "path" in obj:
+        for cmd in obj["path"]:
+            if cmd[0] in ("L", "M"):
+                pts.append([cmd[1], cmd[2]])
+    elif obj.get("type") == "polygon" and "points" in obj:
+        pts = [[p["x"], p["y"]] for p in obj["points"]]
+    if len(pts) >= 3:
+        pts = np.array(pts, dtype=np.float32)
+        # キャンバス座標 → 元画像座標へ拡大
+        scale = W / float(display_w)
+        pts_img = (pts * scale).astype(np.int32)
+        roi_mask = np.zeros((H, W), np.uint8)
+        cv2.fillPoly(roi_mask, [pts_img.reshape(-1, 1, 2)], 255)
+
+# ==========================
+# Canvas 2: Baseline (top→bottom) with two points
+# ==========================
+st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
+click_canvas = st_canvas(
+    background_image=bg_pil_disp.copy(),
+    background_color="rgba(0, 0, 0, 0)",
+    width=display_w, height=display_h,
+    update_streamlit=True,
+    display_toolbar=True,
+    drawing_mode="point",
+    key="click_canvas",
+)
+
+# クリック点の取得
 points = []
 if click_canvas.json_data:
-    for obj in click_canvas.json_data["objects"]:
+    for obj in click_canvas.json_data.get("objects", []):
         if obj.get("type") == "circle":
+            # fabric.jsのcircleは left/top が中心座標扱い（drawable-canvasのpoint）
             points.append([obj["left"], obj["top"]])
+
 if len(points) < 2:
     st.warning("上端→下端の順に2点タップしてください。")
     st.stop()
 
-P_top = np.array(points[0]); P_bot = np.array(points[1])
-roi_mask = None
+# キャンバス座標 → 元画像座標
+scale = W / float(display_w)
+P_top = (np.array(points[0], dtype=np.float32) * scale)
+P_bot = (np.array(points[1], dtype=np.float32) * scale)
 
-# ---------- Analyze ----------
+# ==========================
+# Analyze
+# ==========================
 res = analyze(
     img_bgr, top_xy=P_top, bottom_xy=P_bot, roi_mask=roi_mask,
-    band_px=band_px, gray_eq=gray_eq, canny1=canny1, canny2=canny2,
+    band_px=st.session_state.get("band_px", None) or 80 if 'band_px' not in st.session_state else band_px,
+    gray_eq=gray_eq, canny1=canny1, canny2=canny2,
     mask_veg=mask_veg, mask_sky=mask_sky
 )
 
 img_rot = res["img_rot"]; edges = res["edges"]; contour = res["contour"]
 P_top_rot = res["P_top_rot"]; P_bot_rot = res["P_bot_rot"]
-centers = res["centers"]; prof_px = res["prof_px"]; scale = res["scale_px_per_mm"]
+centers = res["centers"]; prof_px = res["prof_px"]; scale_px_per_mm = res["scale_px_per_mm"]
 x0, x1 = res["band"]
 
-# ---------- Overlay / Edges ----------
+# ==========================
+# Overlay / Edges
+# ==========================
 overlay = img_rot.copy()
 cv2.line(overlay, tuple(P_top_rot.astype(int)), tuple(P_bot_rot.astype(int)), (0, 255, 0), 2)
 cv2.rectangle(overlay, (x0, 0), (x1, overlay.shape[0] - 1), (0, 0, 255), 1)
@@ -244,17 +295,23 @@ with col1:
 with col2:
     st.image(edges, caption="Edges（デバッグ）", use_column_width=True)
 
-# ---------- Profile ----------
+# ==========================
+# Profile
+# ==========================
 st.subheader("3) 孕みプロファイル")
 if centers is None or prof_px is None:
-    st.error("輪郭が十分に得られませんでした。ROIや探索帯を調整してください。")
+    st.error("輪郭が十分に得られませんでした。ROIや探索帯・Cannyを調整してください。")
 else:
     fig, ax = plt.subplots(figsize=(6, 3))
+    # mmスケール計算（必要なら）
     if height_mm and height_mm > 0:
         px_len = float(np.linalg.norm(P_bot_rot - P_top_rot))
-        scale = px_len / float(height_mm)
-    if scale:
-        prof_mm = prof_px / scale
+        scale_local = px_len / float(height_mm)
+    else:
+        scale_local = None
+
+    if scale_local:
+        prof_mm = prof_px / scale_local
         ax.plot(centers, prof_mm); ax.set_ylabel("Lateral offset [mm]")
         mx = float(np.nanmax(np.abs(prof_mm))); unit = "mm"
     else:
@@ -264,15 +321,12 @@ else:
     ax.grid(True); ax.set_title(f"Max |offset| ≈ {mx:.1f} {unit}")
     st.pyplot(fig)
 
-    # CSV
+    # CSV ダウンロード
     import pandas as pd
     df = pd.DataFrame({"t_norm": centers, "offset_px": prof_px})
-    if scale: df["offset_mm"] = prof_px / scale
+    if scale_local: df["offset_mm"] = prof_px / scale_local
     st.download_button(
         "CSVをダウンロード",
         df.to_csv(index=False).encode("utf-8-sig"),
         file_name="bulge_profile.csv", mime="text/csv"
     )
-
-st.caption("使い方: ①画像アップ ②ROIで斜面を囲む ③上端→下端をクリック")
-
