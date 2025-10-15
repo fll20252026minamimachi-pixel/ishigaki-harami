@@ -201,17 +201,19 @@ if uploaded is not None:
         key="roi_canvas",
     )
 
-    # ---- 基準線キャンバス ----
-    st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
-    click_canvas = st_canvas(
-        background_image=bg_pil_disp.copy(),
-        background_color=None,
-        update_streamlit=True,
-        display_toolbar=True,
-        width=int(display_w), height=int(display_h),
-        drawing_mode="point",
-        key="click_canvas",
-    )else:
+  　# ---- 基準線キャンバス ----
+  　st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
+  　click_canvas = st_canvas(
+       background_image=bg_pil_disp.copy(),
+       background_color=None,
+       update_streamlit=True,
+       display_toolbar=True,
+       width=int(display_w), height=int(display_h),
+       drawing_mode="point",
+       key="click_canvas",
+　　)
+
+else:
     st.info("上のボタンから石垣の画像（JPG/PNG）をアップロードしてください。")
     st.stop()
 
