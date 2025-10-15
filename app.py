@@ -154,12 +154,6 @@ with st.sidebar:
 # ---------- File upload ----------
 uploaded = st.file_uploader("石垣画像をアップロード", type=["jpg", "jpeg", "png"])
 if uploaded is not None:
-    st.success("画像がアップロードされました ✅")
-else:
-    st.warning("画像をアップロードしてください。")
-
-
-if uploaded is not None:
     import cv2, numpy as np
     from PIL import Image
     from streamlit_drawable_canvas import st_canvas
@@ -174,22 +168,15 @@ if uploaded is not None:
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     H, W = img_rgb.shape[:2]
 
-    # ---- キャンバス表示サイズ ----
-    display_w = min(800, W)                 # 横800px上限
+    # ---- 背景画像 ----
+    display_w = min(800, W)
     display_h = int(H * display_w / W)
-
-    # ---- 背景画像（PIL, RGBA, リサイズ）----
     bg_pil = Image.fromarray(img_rgb).convert("RGB")
     bg_pil_disp = bg_pil.resize((display_w, display_h), Image.BILINEAR)
 
-    # デバッグ用：画像が正しく作れているか確認
-    st.image(bg_pil_disp, caption="キャンバスに渡す背景画像（一時表示）", use_column_width=True)
-# デバッグ：画像が正しくできているか一時確認（黒→ここが原因）
-    st.write("DEBUG:", bg_pil_disp.mode, bg_pil_disp.size, display_w, display_h)  # 一時的
-
-    # ---- ROI キャンバス ----
+    # ---- ROIキャンバス ----
     st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
-    roi_canvas = st_canvas(   # ← ここを左端に合わせる（ifの中なので4スペース）
+    roi_canvas = st_canvas(
         fill_color="rgba(255, 165, 0, 0.25)",
         stroke_width=3, stroke_color="#ffa500",
         background_image=bg_pil_disp.copy(),
@@ -201,17 +188,17 @@ if uploaded is not None:
         key="roi_canvas",
     )
 
-  　# ---- 基準線キャンバス ----
-  　st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
-  　click_canvas = st_canvas(
-       background_image=bg_pil_disp.copy(),
-       background_color=None,
-       update_streamlit=True,
-       display_toolbar=True,
-       width=int(display_w), height=int(display_h),
-       drawing_mode="point",
-       key="click_canvas",
-　　)
+    # ---- 基準線キャンバス ----
+    st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
+    click_canvas = st_canvas(
+        background_image=bg_pil_disp.copy(),
+        background_color=None,
+        update_streamlit=True,
+        display_toolbar=True,
+        width=int(display_w), height=int(display_h),
+        drawing_mode="point",
+        key="click_canvas",
+    )
 
 else:
     st.info("上のボタンから石垣の画像（JPG/PNG）をアップロードしてください。")
