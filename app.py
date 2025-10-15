@@ -179,11 +179,13 @@ if uploaded is not None:
     display_h = int(H * display_w / W)
 
     # ---- 背景画像（PIL, RGBA, リサイズ）----
-    bg_pil = Image.fromarray(img_rgb).convert("RGBA")
+    bg_pil = Image.fromarray(img_rgb).convert("RGB")
     bg_pil_disp = bg_pil.resize((display_w, display_h), Image.BILINEAR)
 
     # デバッグ用：画像が正しく作れているか確認
     st.image(bg_pil_disp, caption="キャンバスに渡す背景画像（一時表示）", use_column_width=True)
+# デバッグ：画像が正しくできているか一時確認（黒→ここが原因）
+    st.write("DEBUG:", bg_pil_disp.mode, bg_pil_disp.size, display_w, display_h)  # 一時的
 
     # ---- ROI キャンバス ----
     st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
@@ -225,6 +227,7 @@ if len(points) < 2:
     st.stop()
 
 P_top = np.array(points[0]); P_bot = np.array(points[1])
+roi_mask = None
 
 # ---------- Analyze ----------
 res = analyze(
