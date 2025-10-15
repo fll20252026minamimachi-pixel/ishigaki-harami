@@ -1,8 +1,7 @@
-streamlit==1.38.0
+streamlit==1.25.0
+streamlit-drawable-canvas==0.9.3
 opencv-python-headless
 numpy
+Pillow==9.5.0
 matplotlib
 scipy
-streamlit-drawable-canvas==0.9.3
-Pillow>=9.5
-pandas
