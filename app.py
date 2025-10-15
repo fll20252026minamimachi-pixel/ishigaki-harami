@@ -3,6 +3,7 @@
 import streamlit as st
 import numpy as np
 import cv2, io
+from PIL import Image 
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from streamlit_drawable_canvas import st_canvas
@@ -155,15 +156,24 @@ file_bytes = np.frombuffer(uploaded.read(), np.uint8)
 img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 H, W = img_rgb.shape[:2]
+# --- ここから追加 ---
+# キャンバス表示サイズ（幅800px以下に）と、PIL画像の用意
+display_w = min(800, W)
+display_h = int(H * display_w / W)
+bg_pil = Image.fromarray(img_rgb)  # numpy → PIL
+# --- ここまで追加 ---
+
 
 # ---------- ROI polygon ----------
 st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
 roi_canvas = st_canvas(
     fill_color="rgba(255, 165, 0, 0.25)",
     stroke_width=3, stroke_color="#ffa500",
-    background_image=st.image(img_rgb, use_column_width=True).image,
-    update_streamlit=True, width=800, height=int(800 * H / W),
-    drawing_mode="polygon", key="roi_canvas",
+    background_image=bg_pil,          # ← PIL画像を渡すように修正
+    update_streamlit=True,
+    width=display_w, height=display_h,  # ← 表示サイズを明示
+    drawing_mode="polygon",
+    key="roi_canvas",
 )
 
 roi_mask = None
@@ -176,7 +186,8 @@ if roi_canvas.json_data and len(roi_canvas.json_data["objects"]) > 0:
                 if cmd[0] in ("L", "M"):
                     pts.append([cmd[1], cmd[2]])
             if len(pts) >= 3:
-                scale = W / 800.0
+                roi_coords = np.array(roi_coords) * scale
+                scale = W / float(display_w)
                 pts = (np.array(pts) * scale).astype(np.int32)
                 roi_mask = np.zeros((H, W), np.uint8)
                 cv2.fillPoly(roi_mask, [pts.reshape(-1, 1, 2)], 255)
@@ -186,9 +197,11 @@ if roi_canvas.json_data and len(roi_canvas.json_data["objects"]) > 0:
 # ---------- TOP/BOTTOM clicks ----------
 st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
 click_canvas = st_canvas(
-    background_image=st.image(img_rgb, use_column_width=True).image,
-    update_streamlit=True, width=800, height=int(800 * H / W),
-    drawing_mode="point", key="click_canvas",
+    background_image=bg_pil,           # ← ここが重要！（PIL画像を使用）
+    update_streamlit=True,
+    width=display_w, height=display_h,  # ← 表示サイズを明示
+    drawing_mode="point",
+    key="click_canvas",
 )
 points = []
 if click_canvas.json_data:
