@@ -192,7 +192,7 @@ if uploaded is not None:
     roi_canvas = st_canvas(
         fill_color="rgba(255, 165, 0, 0.25)",
         stroke_width=3, stroke_color="#ffa500",
-        background_image=np.array(bg_pil_disp),   # ← ここを NumPy 配列に
+        background_image=bg_pil_disp,   # ← ここを NumPy 配列に
         update_streamlit=True,
         display_toolbar=True,
         width=display_w, height=display_h,
@@ -203,7 +203,7 @@ if uploaded is not None:
     # ---- 基準線 キャンバス ----
     st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
     click_canvas = st_canvas(
-        background_image=np.array(bg_pil_disp),   # ← ここを NumPy 配列に
+        background_image=bg_pil_disp,   # ← ここを NumPy 配列に
         update_streamlit=True,
         display_toolbar=True,
         width=display_w, height=display_h,
