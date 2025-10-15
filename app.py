@@ -154,8 +154,25 @@ if not uploaded:
 
 file_bytes = np.frombuffer(uploaded.read(), np.uint8)
 img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+
+# （任意）大きすぎる画像は先に縮小して軽量化
+max_w = 1280
+h0, w0 = img_bgr.shape[:2]
+if w0 > max_w:
+    img_bgr = cv2.resize(img_bgr, (max_w, int(h0*max_w/w0)), interpolation=cv2.INTER_AREA)
+
+# RGB化
 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 H, W = img_rgb.shape[:2]
+
+# キャンバス表示サイズ（横最大800px）
+display_w = min(800, W)
+display_h = int(H * display_w / W)
+
+# 背景に渡す画像は、先にキャンバスサイズへリサイズした PIL 画像にする（重要）
+from PIL import Image  # ← 先頭の import 群にも入れておいてOK
+bg_pil = Image.fromarray(img_rgb).convert("RGB")
+bg_pil_disp = bg_pil.resize((display_w, display_h), Image.BILINEAR)
 # --- ここから追加 ---
 # キャンバス表示サイズ（幅800px以下に）と、PIL画像の用意
 display_w = min(800, W)
@@ -169,9 +186,9 @@ st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Rele
 roi_canvas = st_canvas(
     fill_color="rgba(255, 165, 0, 0.25)",
     stroke_width=3, stroke_color="#ffa500",
-    background_image=bg_pil,          # ← PIL画像を渡すように修正
+    background_image=bg_pil_disp,     # ← ここを必ず bg_pil_disp
     update_streamlit=True,
-    width=display_w, height=display_h,  # ← 表示サイズを明示
+    width=display_w, height=display_h,
     drawing_mode="polygon",
     key="roi_canvas",
 )
@@ -197,12 +214,13 @@ if roi_canvas.json_data and len(roi_canvas.json_data["objects"]) > 0:
 # ---------- TOP/BOTTOM clicks ----------
 st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
 click_canvas = st_canvas(
-    background_image=bg_pil,           # ← ここが重要！（PIL画像を使用）
+    background_image=bg_pil_disp,     # ← ここも必ず bg_pil_disp
     update_streamlit=True,
-    width=display_w, height=display_h,  # ← 表示サイズを明示
+    width=display_w, height=display_h,
     drawing_mode="point",
     key="click_canvas",
 )
+
 points = []
 if click_canvas.json_data:
     for obj in click_canvas.json_data["objects"]:
