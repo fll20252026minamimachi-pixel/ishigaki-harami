@@ -156,7 +156,7 @@ with st.sidebar:
     st.caption("ヒント: うまく拾わない時は ROI を狭める・探索帯を調整")
 
 # ---------- File upload ----------
-uploaded = st.file_uploader("画像をアップロード（JPG/PNG）", type=["jpg", "jpeg", "png"])
+#uploaded = st.file_uploader("画像をアップロード（JPG/PNG）", type=["jpg", "jpeg", "png"])
 if not uploaded:
     st.info("上のボックスから画像を選んでください。")
     st.stop()
@@ -192,16 +192,18 @@ bg_pil = Image.fromarray(img_rgb)  # numpy → PIL
 
 # ---------- ROI polygon ----------
 st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
-roi_canvas = st.image(bg_pil_disp, caption="キャンバスに渡す背景画像", use_column_width=True)
-st_canvas(
+roi_canvas = st_canvas(
     fill_color="rgba(255, 165, 0, 0.25)",
     stroke_width=3, stroke_color="#ffa500",
-    background_image=bg_pil_disp,     # ← ここを必ず bg_pil_disp
+    background_color="#00000000",        # 透明にして背景画像を見やすく
+    background_image=bg_pil_disp,        # 事前リサイズ済みの PIL 画像
     update_streamlit=True,
+    display_toolbar=True,                # ツールバー表示
     width=display_w, height=display_h,
     drawing_mode="polygon",
     key="roi_canvas",
 )
+
 
 roi_mask = None
 if roi_canvas.json_data and len(roi_canvas.json_data["objects"]) > 0:
@@ -224,12 +226,15 @@ if roi_canvas.json_data and len(roi_canvas.json_data["objects"]) > 0:
 # ---------- TOP/BOTTOM clicks ----------
 st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
 click_canvas = st_canvas(
-    background_image=bg_pil_disp,     # ← ここも必ず bg_pil_disp
+    background_color="#00000000",
+    background_image=bg_pil_disp,
     update_streamlit=True,
+    display_toolbar=True,
     width=display_w, height=display_h,
     drawing_mode="point",
     key="click_canvas",
 )
+
 
 points = []
 if click_canvas.json_data:
