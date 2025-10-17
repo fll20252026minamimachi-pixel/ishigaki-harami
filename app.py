@@ -167,6 +167,16 @@ bg_pil_disp = pil_img.resize((display_w, display_h), Image.BILINEAR)
 # プレビュー（確認用。落ち着いたら消してOK）
 st.image(bg_pil_disp, caption="キャンバスに渡す背景（プレビュー）", use_column_width=True)
 
+st.markdown("""
+    <style>
+    /* st_canvas の内部 canvas 2枚（背景層/描画層）を不透明＆白に固定 */
+    [data-testid="stCanvas"] canvas {
+        background: #ffffff !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
 # ====== Canvas 1: ROI polygon ======
 st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → ダブルクリックで確定")
 roi_canvas = st_canvas(
