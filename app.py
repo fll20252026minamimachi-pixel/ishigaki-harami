@@ -156,7 +156,7 @@ if uploaded is None:
 
 # ====== Load image via Pillow (安定) ======
 file_bytes = uploaded.read()
-pil_img = Image.open(io.BytesIO(file_bytes)).convert("RGB")  # 必ず RGB
+pil_img = Image.open(io.BytesIO(file_bytes)).convert("RGBA")  # 必ず RGB
 W, H = pil_img.size
 img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)  # 解析用
 
