@@ -156,7 +156,7 @@ if uploaded is None:
 
 # ====== Load image via Pillow (安定) ======
 file_bytes = uploaded.read()
-pil_img = Image.open(io.BytesIO(file_bytes)).convert("RGBA")  # 必ず RGB
+pil_img = Image.open(io.BytesIO(file_bytes)).convert("RGB")  # 必ず RGB
 W, H = pil_img.size
 img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)  # 解析用
 
@@ -175,6 +175,11 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+st.image(bg_pil_disp, caption="プレビュー（ここに画像が出る）", use_column_width=True)
+st.write("DEBUG:", type(bg_pil_disp), getattr(bg_pil_disp, "mode", None), bg_pil_disp.size)
+# 期待: <class 'PIL.Image.Image'> , 'RGB' , (display_w, display_h)
+
 
 
 # ====== Canvas 1: ROI polygon ======
