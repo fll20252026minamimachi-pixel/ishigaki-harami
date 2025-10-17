@@ -154,69 +154,50 @@ with st.sidebar:
 # ---------- File upload ----------
 uploaded = st.file_uploader("石垣画像をアップロード", type=["jpg", "jpeg", "png"])
 if uploaded is not None:
-    import cv2, numpy as np
-    from PIL import Image
-    from streamlit_drawable_canvas import st_canvas
+   # ==== ここから置き換え（BEGIN REPLACEMENT）====
+# ---- 画像読み込み（Pillowで安定化）----
+file_bytes = uploaded.read()
+pil_img = Image.open(io.BytesIO(file_bytes)).convert("RGB")   # 必ず RGB
+W, H = pil_img.size
 
-    # ---- 画像読み込み ----
-    file_bytes = np.frombuffer(uploaded.read(), np.uint8)
-    img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    if img_bgr is None:
-        st.error("画像の読み込みに失敗しました。別の画像でお試しください。")
-        st.stop()
+# 解析用（OpenCV が必要な処理で使う BGR）
+img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    H, W = img_rgb.shape[:2]
+# ---- キャンバス表示サイズ（幅800px上限）----
+display_w = int(min(800, W))
+display_h = int(H * display_w / W)
 
-    # ---- 背景画像 ----
-    display_w = min(800, W)
-    display_h = int(H * display_w / W)
-    bg_pil = Image.fromarray(img_rgb).convert("RGB")
-    bg_pil_disp = bg_pil.resize((display_w, display_h), Image.BILINEAR)
+# 背景画像（PIL, RGB）をリサイズ
+bg_pil_disp = pil_img.resize((display_w, display_h), Image.BILINEAR)
 
-    # ---- ROIキャンバス ----
-    st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → Release")
-    roi_canvas = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.25)",
-        stroke_width=3, stroke_color="#ffa500",
-        background_image=bg_pil_disp.copy(),
-        background_color=None,
-        update_streamlit=True,
-        display_toolbar=True,
-        width=int(display_w), height=int(display_h),
-        drawing_mode="polygon",
-        key="roi_canvas",
-    )
+# デバッグ：本当に作れているか
+st.write("DEBUG:", (display_w, display_h), type(bg_pil_disp), getattr(bg_pil_disp, "mode", None))
+st.image(bg_pil_disp, caption="キャンバスに渡す背景（プレビュー）", use_column_width=True)
 
-    # ---- 基準線キャンバス ----
-    st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
-    click_canvas = st_canvas(
-        background_image=bg_pil_disp.copy(),
-        background_color=None,
-        update_streamlit=True,
-        display_toolbar=True,
-        width=int(display_w), height=int(display_h),
-        drawing_mode="point",
-        key="click_canvas",
-    )
+# ---- ROI キャンバス（最小・安定設定）----
+st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → ダブルクリックで確定")
+roi_canvas = st_canvas(
+    background_image=bg_pil_disp.copy(),   # PIL.Image を .copy() で渡す
+    width=display_w, height=display_h,     # int で明示
+    drawing_mode="polygon",
+    stroke_width=3, stroke_color="#ffa500",
+    fill_color="rgba(255,165,0,0.25)",
+    display_toolbar=False,                 # まずはOFF（映ったら必要に応じてON）
+    update_streamlit=False,
+    key="roi_canvas_v1",                   # 固定key
+)
 
-else:
-    st.info("上のボタンから石垣の画像（JPG/PNG）をアップロードしてください。")
-    st.stop()
-
-
-
-points = []
-if click_canvas.json_data:
-    for obj in click_canvas.json_data["objects"]:
-        if obj.get("type") == "circle":
-            points.append([obj["left"], obj["top"]])
-if len(points) < 2:
-    st.warning("上端→下端の順に2点タップしてください。")
-    st.stop()
-
-P_top = np.array(points[0]); P_bot = np.array(points[1])
-roi_mask = None
+# ---- 基準線 キャンバス（最小・安定設定）----
+st.subheader("2) 基準線：上端 → 下端の順に 2 点をクリック")
+click_canvas = st_canvas(
+    background_image=bg_pil_disp.copy(),
+    width=display_w, height=display_h,
+    drawing_mode="point",
+    display_toolbar=False,
+    update_streamlit=False,
+    key="click_canvas_v1",                 # 固定key
+)
+# ==== 置き換えここまで（END REPLACEMENT）====
 
 # ---------- Analyze ----------
 res = analyze(
