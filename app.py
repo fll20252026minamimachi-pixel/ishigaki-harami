@@ -167,31 +167,16 @@ bg_pil_disp = pil_img.resize((display_w, display_h), Image.BILINEAR)
 # プレビュー（確認用。落ち着いたら消してOK）
 st.image(bg_pil_disp, caption="キャンバスに渡す背景（プレビュー）", use_column_width=True)
 
-st.markdown("""
-    <style>
-    /* st_canvas の内部 canvas 2枚（背景層/描画層）を不透明＆白に固定 */
-    [data-testid="stCanvas"] canvas {
-        background: #ffffff !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.image(bg_pil_disp, caption="プレビュー（ここに画像が出る）", use_column_width=True)
-st.write("DEBUG:", type(bg_pil_disp), getattr(bg_pil_disp, "mode", None), bg_pil_disp.size)
-# 期待: <class 'PIL.Image.Image'> , 'RGB' , (display_w, display_h)
-
-
-
 # ====== Canvas 1: ROI polygon ======
 st.subheader("1) ROI（任意）：石垣の斜面を多角形で囲む → ダブルクリックで確定")
 roi_canvas = st_canvas(
-    background_image=bg_pil_disp.copy(),   # PIL(RGB).copy()
-    background_color="#ffffff",            # ← 透明やrgba(…,0)をやめて白で塗る
+    background_image=bg_pil_disp.copy(),     # PIL.Image を copy() で渡す
     width=display_w, height=display_h,
     drawing_mode="polygon",
     stroke_width=3, stroke_color="#ffa500",
     fill_color="rgba(255,165,0,0.25)",
-    display_toolbar=False, update_streamlit=False,
+    display_toolbar=False,                   # まずは False（安定）
+    update_streamlit=False,
     key="roi_canvas_v1",
 )
 
@@ -217,10 +202,10 @@ if roi_canvas.json_data and len(roi_canvas.json_data.get("objects", [])) > 0:
 st.subheader("2) 基準線：上端 → 下端の順に2点をクリック")
 click_canvas = st_canvas(
     background_image=bg_pil_disp.copy(),
-    background_color="#ffffff",            # ← 同上
     width=display_w, height=display_h,
     drawing_mode="point",
-    display_toolbar=False, update_streamlit=False,
+    display_toolbar=False,
+    update_streamlit=False,
     key="click_canvas_v1",
 )
 
